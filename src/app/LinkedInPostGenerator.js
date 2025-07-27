@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import styles from "./LinkedInPostGenerator.module.css";
 
 const LinkedInPostGenerator = () => {
-  const [prompt, setPrompt] = useState("");
+  const [input, setInput] = useState("");
   const [post, setPost] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
@@ -16,6 +16,7 @@ const LinkedInPostGenerator = () => {
     const url = new URL(window.location.href);
     const accessTokenParam = url.searchParams.get("accessToken");
     const authorUrnParam = url.searchParams.get("authorUrn");
+
     // If redirected from LinkedIn with tokens in URL, store and use them
     if (accessTokenParam && authorUrnParam) {
       setAccessToken(accessTokenParam);
@@ -27,6 +28,7 @@ const LinkedInPostGenerator = () => {
       window.history.replaceState({}, document.title, "/");
       return;
     }
+
     // If already have token/URN in sessionStorage, use them
     const storedToken = sessionStorage.getItem("linkedin_access_token");
     const storedUrn = sessionStorage.getItem("linkedin_author_urn");
@@ -45,22 +47,24 @@ const LinkedInPostGenerator = () => {
   };
 
   const generatePostAndPublish = async () => {
-    if (!prompt.trim()) {
+    if (!input.trim()) {
       alert("Please enter a prompt.");
       return;
     }
+
     if (!accessToken || !authorUrn) {
       setStatus("You must authenticate with LinkedIn first.");
       return;
     }
+
     setLoading(true);
     setPost("");
-    setStatus("Generating and posting to LinkedIn...");
+
     try {
       const res = await fetch("/api/agentic-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, accessToken, authorUrn }),
+        body: JSON.stringify({ input, accessToken, authorUrn }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to post to LinkedIn");
@@ -89,8 +93,8 @@ const LinkedInPostGenerator = () => {
             placeholder={
               !isAuthenticated ? "" : "What should the LinkedIn post be about?"
             }
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
             disabled={!isAuthenticated}
             style={
               !isAuthenticated
