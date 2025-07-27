@@ -7,10 +7,7 @@ export async function POST(req) {
   const { input } = body;
 
   if (!input) {
-    return NextResponse.json(
-      { error: "Missing input" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Missing input" }, { status: 400 });
   }
 
   try {
