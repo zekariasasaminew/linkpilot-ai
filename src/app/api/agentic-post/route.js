@@ -39,7 +39,6 @@ export async function POST(req) {
     );
     if (!aiResponse.ok) {
       const aiError = await aiResponse.text();
-      console.error("OpenRouter AI error:", aiError);
       return NextResponse.json(
         { error: "OpenRouter AI error", details: aiError },
         { status: 500 }
@@ -52,7 +51,6 @@ export async function POST(req) {
       !aiData.choices[0].message ||
       !aiData.choices[0].message.content
     ) {
-      console.error("OpenRouter AI response missing content:", aiData);
       return NextResponse.json(
         { error: "OpenRouter AI response missing content", details: aiData },
         { status: 500 }
@@ -88,7 +86,6 @@ export async function POST(req) {
     );
     if (!linkedInPostResponse.ok) {
       const errorDetails = await linkedInPostResponse.text();
-      console.error("LinkedIn post failed:", errorDetails);
       return NextResponse.json(
         { error: "LinkedIn post failed", details: errorDetails },
         { status: 500 }
@@ -96,7 +93,6 @@ export async function POST(req) {
     }
     return NextResponse.json({ message: "Post created successfully" });
   } catch (err) {
-    console.error("Internal server error:", err);
     return NextResponse.json(
       { error: "Internal server error", details: err?.message || err },
       { status: 500 }
