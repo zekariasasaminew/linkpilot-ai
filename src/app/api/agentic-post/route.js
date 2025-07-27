@@ -1,16 +1,19 @@
 import { NextResponse } from "next/server";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const isDev = process.env.MOCK_LINKEDIN === "true";
 
 export async function POST(req) {
   const body = await req.json();
-  const { prompt, accessToken, authorUrn } = body;
-  if (!prompt || !accessToken || !authorUrn) {
+  const { input, accessToken, authorUrn } = body;
+
+  if (!input || !accessToken || !authorUrn) {
     return NextResponse.json(
       { error: "Missing required fields" },
       { status: 400 }
     );
   }
+
   try {
     // Step 1: Generate LinkedIn post using OpenRouter AI
     const aiResponse = await fetch(
@@ -31,12 +34,13 @@ export async function POST(req) {
             },
             {
               role: "user",
-              content: `Write a LinkedIn post based on: ${prompt}`,
+              content: `Write a LinkedIn post based on: ${input}`,
             },
           ],
         }),
       }
     );
+
     if (!aiResponse.ok) {
       const aiError = await aiResponse.text();
       console.error("OpenRouter AI error:", aiError);
@@ -45,7 +49,9 @@ export async function POST(req) {
         { status: 500 }
       );
     }
+
     const aiData = await aiResponse.json();
+
     if (
       !aiData.choices ||
       !aiData.choices[0] ||
@@ -58,43 +64,53 @@ export async function POST(req) {
         { status: 500 }
       );
     }
+
     const generatedPost = aiData.choices[0].message.content;
+    console.log("Generated LinkedIn post:", generatedPost);
+
     // Step 2: Post to LinkedIn using /ugcPosts API
-    const linkedInPostResponse = await fetch(
-      "https://api.linkedin.com/v2/ugcPosts",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          "X-Restli-Protocol-Version": "2.0.0",
-        },
-        body: JSON.stringify({
-          author: authorUrn,
-          lifecycleState: "PUBLISHED",
-          specificContent: {
-            "com.linkedin.ugc.ShareContent": {
-              shareCommentary: {
-                text: generatedPost,
+    let linkedInPostResponse;
+    if (isDev) {
+      return NextResponse.json({
+        message: "Development mode: Post not actually sent",
+      });
+    } else {
+      linkedInPostResponse = await fetch(
+        "https://api.linkedin.com/v2/ugcPosts",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+            "X-Restli-Protocol-Version": "2.0.0",
+          },
+          body: JSON.stringify({
+            author: authorUrn,
+            lifecycleState: "PUBLISHED",
+            specificContent: {
+              "com.linkedin.ugc.ShareContent": {
+                shareCommentary: {
+                  text: generatedPost,
+                },
+                shareMediaCategory: "NONE",
               },
-              shareMediaCategory: "NONE",
             },
-          },
-          visibility: {
-            "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
-          },
-        }),
-      }
-    );
-    if (!linkedInPostResponse.ok) {
-      const errorDetails = await linkedInPostResponse.text();
-      console.error("LinkedIn post failed:", errorDetails);
-      return NextResponse.json(
-        { error: "LinkedIn post failed", details: errorDetails },
-        { status: 500 }
+            visibility: {
+              "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
+            },
+          }),
+        }
       );
+      if (!linkedInPostResponse.ok) {
+        const errorDetails = await linkedInPostResponse.text();
+        console.error("LinkedIn post failed:", errorDetails);
+        return NextResponse.json(
+          { error: "LinkedIn post failed", details: errorDetails },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json({ message: "Post created successfully" });
     }
-    return NextResponse.json({ message: "Post created successfully" });
   } catch (err) {
     console.error("Internal server error:", err);
     return NextResponse.json(
