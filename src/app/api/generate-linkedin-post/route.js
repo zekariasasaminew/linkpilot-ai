@@ -24,12 +24,27 @@ export async function POST(req) {
           messages: [
             {
               role: "system",
-              content:
-                "You are a professional LinkedIn content writer. Keep the tone enthusiastic, clear, and concise. Do not include hashtags unless requested.",
+              content: [
+                "You are an expert LinkedIn content writer and social media strategist - LinkPilot AI.",
+                "Do not use em dashes (—), hyphens (-), or any dash character.",
+                "Your job is to craft engaging, professional, and authentic LinkedIn posts that drive conversation and value.",
+                "Always use a positive, clear, and concise tone.",
+                "Make sure the post is actionable, relevant to the target audience, and includes a strong opening and a clear call to action.",
+                "If the user provides a draft, improve its structure, clarity, and impact while preserving their voice.",
+                "Never mention that you are an AI or language model.",
+              ].join(" "),
             },
             {
               role: "user",
-              content: `Write a LinkedIn post based on: ${input}`,
+              content: [
+                `Write a LinkedIn post based on the following topic or draft: ${input}`,
+                "Do not use em dashes (—), hyphens (-), or any dash character.",
+                "The post should be detailed, actionable, and tailored for a professional audience.",
+                "Start with a strong hook, develop the main idea with supporting points or examples, and end with a clear call to action or question to encourage engagement.",
+                "Keep the language natural and authentic, as if written by a real person.",
+                "If you are refining a draft, make it more compelling, concise, and impactful.",
+                "Return ONLY the LinkedIn post draft. Do not include any commentary, preamble, explanation, or extra text before or after the post.",
+              ].join(" "),
             },
           ],
         }),

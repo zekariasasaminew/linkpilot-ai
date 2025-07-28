@@ -1,16 +1,18 @@
 "use client";
 import { useState, useEffect } from "react";
 import styles from "./LinkedInPostGenerator.module.css";
+import ReactMarkdown from "react-markdown";
 
 const LinkedInPostGenerator = () => {
   const [input, setInput] = useState("");
   const [generated, setGenerated] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [refining, setRefining] = useState(false);
+  const [posting, setPosting] = useState(false);
   const [status, setStatus] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [accessToken, setAccessToken] = useState("");
   const [authorUrn, setAuthorUrn] = useState("");
-  const [step, setStep] = useState("input"); // input | generated | posting | done
+  const [step, setStep] = useState("input");
 
   // On mount, check for LinkedIn auth code in URL or existing session
   useEffect(() => {
@@ -49,7 +51,7 @@ const LinkedInPostGenerator = () => {
 
   // Generate or refine post
   const handleGenerate = async (text) => {
-    setLoading(true);
+    setRefining(true);
     setStatus("");
     try {
       const res = await fetch("/api/generate-linkedin-post", {
@@ -64,7 +66,7 @@ const LinkedInPostGenerator = () => {
     } catch (err) {
       setStatus("Error: " + err.message);
     } finally {
-      setLoading(false);
+      setRefining(false);
     }
   };
 
@@ -78,7 +80,7 @@ const LinkedInPostGenerator = () => {
       setStatus("You must authenticate with LinkedIn first.");
       return;
     }
-    setLoading(true);
+    setPosting(true);
     setStatus("");
     try {
       const res = await fetch("/api/post-linkedin", {
@@ -93,7 +95,7 @@ const LinkedInPostGenerator = () => {
     } catch (err) {
       setStatus("Error: " + err.message);
     } finally {
-      setLoading(false);
+      setPosting(false);
     }
   };
 
@@ -109,23 +111,36 @@ const LinkedInPostGenerator = () => {
           <span className={styles.googleSubtitle}>LinkedIn Post Generator</span>
         </div>
         <div className={styles.googleBody}>
-          <textarea
-            className={styles.googleTextarea}
-            rows={5}
-            placeholder={
-              step === "input"
-                ? "What should the LinkedIn post be about?"
-                : "Edit or refine your LinkedIn post here..."
-            }
-            value={step === "input" ? input : generated}
-            onChange={(e) =>
-              step === "input"
-                ? setInput(e.target.value)
-                : setGenerated(e.target.value)
-            }
-            disabled={!isAuthenticated || loading || step === "done"}
-            autoFocus
-          />
+          {step === "input" ? (
+            <textarea
+              className={styles.googleTextarea}
+              rows={5}
+              placeholder="What should the LinkedIn post be about?"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={
+                !isAuthenticated || refining || posting || step === "done"
+              }
+              autoFocus
+            />
+          ) : (
+            <>
+              <textarea
+                className={styles.googleTextarea}
+                rows={5}
+                value={generated}
+                onChange={(e) => setGenerated(e.target.value)}
+                disabled={
+                  !isAuthenticated || refining || posting || step === "done"
+                }
+                style={{ marginBottom: 12 }}
+              />
+              <div className={styles.googlePreviewLabel}>Preview:</div>
+              <div className={styles.googleMarkdownPreview}>
+                <ReactMarkdown>{generated}</ReactMarkdown>
+              </div>
+            </>
+          )}
           {!isAuthenticated && (
             <div className={styles.googleOverlay}>
               Authenticate with LinkedIn to start
@@ -141,26 +156,26 @@ const LinkedInPostGenerator = () => {
             <button
               className={styles.googleButton}
               onClick={() => handleGenerate(input)}
-              disabled={loading || !input.trim()}
+              disabled={refining || posting || !input.trim()}
             >
-              {loading ? "Generating..." : "Generate"}
+              {refining ? "Generating..." : "Generate"}
             </button>
           ) : step === "generated" ? (
             <>
               <button
                 className={styles.googleButton}
                 onClick={() => handleGenerate(generated)}
-                disabled={loading || !generated.trim()}
+                disabled={refining || posting || !generated.trim()}
                 style={{ marginRight: 8 }}
               >
-                {loading ? "Refining..." : "Refine"}
+                {refining ? "Refining..." : "Refine"}
               </button>
               <button
                 className={styles.googleButtonPrimary}
                 onClick={handlePost}
-                disabled={loading || !generated.trim()}
+                disabled={posting || refining || !generated.trim()}
               >
-                {loading ? "Posting..." : "Post"}
+                {posting ? "Posting..." : "Post"}
               </button>
             </>
           ) : (
