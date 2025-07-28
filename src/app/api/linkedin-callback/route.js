@@ -29,9 +29,17 @@ export async function GET(req) {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const profile = await profileRes.json();
-    // Debug: log the full profile response
     const authorUrn = profile.sub ? `urn:li:person:${profile.sub}` : undefined;
-    return NextResponse.json({ accessToken, authorUrn, profile });
+    // Redirect to app with credentials and profile info in URL
+    const params = new URLSearchParams({
+      accessToken,
+      authorUrn,
+      name: profile.name || "",
+      picture: profile.picture || "",
+    });
+    return NextResponse.redirect(
+      `${process.env.NEXT_PUBLIC_BASE_URL || "/"}?${params.toString()}`
+    );
   } catch (err) {
     return NextResponse.json({ error: "OAuth flow failed" }, { status: 500 });
   }

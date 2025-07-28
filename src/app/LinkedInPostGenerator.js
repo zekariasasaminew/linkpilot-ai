@@ -68,12 +68,16 @@ const LinkedInPostGenerator = () => {
   const [accessToken, setAccessToken] = useState("");
   const [authorUrn, setAuthorUrn] = useState("");
   const [step, setStep] = useState("input");
+  const [userName, setUserName] = useState("");
+  const [userPicture, setUserPicture] = useState("");
 
   // On mount, check for LinkedIn auth code in URL or existing session
   useEffect(() => {
     const url = new URL(window.location.href);
     const accessTokenParam = url.searchParams.get("accessToken");
     const authorUrnParam = url.searchParams.get("authorUrn");
+    const nameParam = url.searchParams.get("name");
+    const pictureParam = url.searchParams.get("picture");
 
     // If redirected from LinkedIn with tokens in URL, store and use them
     if (accessTokenParam && authorUrnParam) {
@@ -82,6 +86,14 @@ const LinkedInPostGenerator = () => {
       setIsAuthenticated(true);
       sessionStorage.setItem("linkedin_access_token", accessTokenParam);
       sessionStorage.setItem("linkedin_author_urn", authorUrnParam);
+      if (nameParam) {
+        setUserName(nameParam);
+        sessionStorage.setItem("linkedin_user_name", nameParam);
+      }
+      if (pictureParam) {
+        setUserPicture(pictureParam);
+        sessionStorage.setItem("linkedin_user_picture", pictureParam);
+      }
       // Clean up URL
       window.history.replaceState({}, document.title, "/");
       return;
@@ -90,10 +102,14 @@ const LinkedInPostGenerator = () => {
     // If already have token/URN in sessionStorage, use them
     const storedToken = sessionStorage.getItem("linkedin_access_token");
     const storedUrn = sessionStorage.getItem("linkedin_author_urn");
+    const storedName = sessionStorage.getItem("linkedin_user_name");
+    const storedPicture = sessionStorage.getItem("linkedin_user_picture");
     if (storedToken && storedUrn) {
       setAccessToken(storedToken);
       setAuthorUrn(storedUrn);
       setIsAuthenticated(true);
+      if (storedName) setUserName(storedName);
+      if (storedPicture) setUserPicture(storedPicture);
       return;
     }
   }, []);
@@ -173,6 +189,42 @@ const LinkedInPostGenerator = () => {
           <span className={styles.logoDot4} />
           <span className={styles.googleTitle}>LinkPilot AI</span>
           <span className={styles.googleSubtitle}>LinkedIn Post Generator</span>
+          {isAuthenticated && (userName || userPicture) && (
+            <div
+              className={styles.googleUserInfo}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+              }}
+            >
+              {userPicture && (
+                <img
+                  src={userPicture}
+                  alt={userName || "User"}
+                  className={styles.googleUserPic}
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: "50%",
+                    border: "2px solid #dadce0",
+                    objectFit: "cover",
+                  }}
+                />
+              )}
+              {userName && (
+                <span
+                  className={styles.googleUserName}
+                  style={{
+                    color: "#222",
+                    textAlign: "center",
+                  }}
+                >
+                  {userName}
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div className={styles.googleBody}>
           {/* Image upload UI */}
