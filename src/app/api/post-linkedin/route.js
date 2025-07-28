@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
-
-const isDev = process.env.MOCK_LINKEDIN === "true";
+// Simple markdown-to-text stripper (handles bold, italics, links, code, lists, etc.)
+function stripMarkdown(md) {
+  if (!md) return "";
+  // Only remove ** used for bold, keep all other formatting and newlines
+  return md.replace(/\*\*(.*?)\*\*/g, "$1");
+}
 
 export async function POST(req) {
   const body = await req.json();
-  const { content, accessToken, authorUrn } = body;
+  const { content, accessToken, authorUrn, imageAssetUrns } = body;
 
   if (!content || !accessToken || !authorUrn) {
     return NextResponse.json(
@@ -13,12 +17,18 @@ export async function POST(req) {
     );
   }
 
+  // Convert markdown to plain text for LinkedIn
+  const plainText = stripMarkdown(content);
+
+  // Build media array if imageAssetUrn is provided
+  let shareMediaCategory = "NONE";
+  let media = undefined;
+  if (Array.isArray(imageAssetUrns) && imageAssetUrns.length > 0) {
+    shareMediaCategory = "IMAGE";
+    media = imageAssetUrns.map((urn) => ({ status: "READY", media: urn }));
+  }
+
   try {
-    if (isDev) {
-      return NextResponse.json({
-        message: "Development mode: Post not actually sent",
-      });
-    }
     const linkedInPostResponse = await fetch(
       "https://api.linkedin.com/v2/ugcPosts",
       {
@@ -34,9 +44,10 @@ export async function POST(req) {
           specificContent: {
             "com.linkedin.ugc.ShareContent": {
               shareCommentary: {
-                text: content,
+                text: plainText,
               },
-              shareMediaCategory: "NONE",
+              shareMediaCategory,
+              ...(media ? { media } : {}),
             },
           },
           visibility: {

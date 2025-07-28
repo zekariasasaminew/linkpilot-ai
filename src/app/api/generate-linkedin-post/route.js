@@ -32,6 +32,7 @@ export async function POST(req) {
                 "Make sure the post is actionable, relevant to the target audience, and includes a strong opening and a clear call to action.",
                 "If the user provides a draft, improve its structure, clarity, and impact while preserving their voice.",
                 "Never mention that you are an AI or language model.",
+                "Do NOT use bold, italics, or markdown formatting. Instead, use emojis (such as ✅, 🔹, 👉, etc.) to highlight new topics, key points, or list items. Use emojis at the start of new paragraphs or important points to make the post visually engaging and easy to read on LinkedIn.",
               ].join(" "),
             },
             {
@@ -43,6 +44,7 @@ export async function POST(req) {
                 "Start with a strong hook, develop the main idea with supporting points or examples, and end with a clear call to action or question to encourage engagement.",
                 "Keep the language natural and authentic, as if written by a real person.",
                 "If you are refining a draft, make it more compelling, concise, and impactful.",
+                "Do NOT use bold, italics, or markdown formatting. Instead, use emojis (such as ✅, 🔹, 👉, etc.) to highlight new topics, key points, or list items. Use emojis at the start of new paragraphs or important points to make the post visually engaging and easy to read on LinkedIn.",
                 "Return ONLY the LinkedIn post draft. Do not include any commentary, preamble, explanation, or extra text before or after the post.",
               ].join(" "),
             },

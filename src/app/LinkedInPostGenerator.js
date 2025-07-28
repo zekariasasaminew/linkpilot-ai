@@ -1,14 +1,69 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import styles from "./LinkedInPostGenerator.module.css";
 import ReactMarkdown from "react-markdown";
 
 const LinkedInPostGenerator = () => {
+  // Hydration state to avoid SSR/client mismatch
+  const [hydrated, setHydrated] = useState(false);
+  // Set hydrated to true after mount
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
   const [input, setInput] = useState("");
   const [generated, setGenerated] = useState("");
   const [refining, setRefining] = useState(false);
   const [posting, setPosting] = useState(false);
   const [status, setStatus] = useState("");
+  const [imageFiles, setImageFiles] = useState([]); // Array of File
+  const [imagePreviews, setImagePreviews] = useState([]); // Array of preview URLs
+  const [imageAssetUrns, setImageAssetUrns] = useState([]); // Array of asset URNs
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const fileInputRef = useRef();
+  // Handle image selection
+  const handleImageChange = (e) => {
+    const files = Array.from(e.target.files);
+    setImageFiles(files);
+    setImagePreviews(files.map((file) => URL.createObjectURL(file)));
+    setImageAssetUrns([]);
+  };
+
+  // Upload all images to LinkedIn and get asset URNs
+  const uploadImages = async () => {
+    if (!imageFiles.length || !accessToken || !authorUrn) return;
+    setUploadingImages(true);
+    setStatus("");
+    try {
+      const assetUrns = [];
+      for (const file of imageFiles) {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        await new Promise((resolve) => (reader.onload = resolve));
+        const base64 = reader.result.split(",")[1];
+        const res = await fetch("/api/upload-linkedin-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accessToken,
+            authorUrn,
+            fileName: file.name,
+            fileType: file.type,
+            fileData: base64,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Image upload failed");
+        assetUrns.push(data.asset);
+      }
+      setImageAssetUrns(assetUrns);
+      setStatus("All images uploaded and ready to post.");
+    } catch (err) {
+      setStatus("Error uploading images: " + err.message);
+      setImageAssetUrns([]);
+    } finally {
+      setUploadingImages(false);
+    }
+  };
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [accessToken, setAccessToken] = useState("");
   const [authorUrn, setAuthorUrn] = useState("");
@@ -80,13 +135,22 @@ const LinkedInPostGenerator = () => {
       setStatus("You must authenticate with LinkedIn first.");
       return;
     }
+    if (imageFiles.length && imageAssetUrns.length !== imageFiles.length) {
+      setStatus("Please upload all images before posting.");
+      return;
+    }
     setPosting(true);
     setStatus("");
     try {
       const res = await fetch("/api/post-linkedin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: generated, accessToken, authorUrn }),
+        body: JSON.stringify({
+          content: generated,
+          accessToken,
+          authorUrn,
+          imageAssetUrns: imageAssetUrns.length ? imageAssetUrns : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to post to LinkedIn");
@@ -111,6 +175,73 @@ const LinkedInPostGenerator = () => {
           <span className={styles.googleSubtitle}>LinkedIn Post Generator</span>
         </div>
         <div className={styles.googleBody}>
+          {/* Image upload UI */}
+          {/* Only render client-only UI after hydration to avoid SSR mismatch */}
+          {hydrated && isAuthenticated && step !== "done" && (
+            <div style={{ marginBottom: 16 }}>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                ref={fileInputRef}
+                style={{ display: "none" }}
+                onChange={handleImageChange}
+              />
+              <button
+                className={styles.googleButton}
+                type="button"
+                onClick={() =>
+                  fileInputRef.current && fileInputRef.current.click()
+                }
+                disabled={refining || posting || uploadingImages}
+                style={{ marginRight: 8 }}
+              >
+                {imageFiles.length ? "Change Images" : "Upload Images"}
+              </button>
+              {imageFiles.length > 0 &&
+                imageAssetUrns.length !== imageFiles.length && (
+                  <button
+                    className={styles.googleButtonPrimary}
+                    type="button"
+                    onClick={uploadImages}
+                    disabled={uploadingImages || refining || posting}
+                  >
+                    {uploadingImages
+                      ? `Uploading... (${imageAssetUrns.length}/${imageFiles.length})`
+                      : "Upload to LinkedIn"}
+                  </button>
+                )}
+              {imagePreviews.length > 0 && (
+                <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
+                  {imagePreviews.map((preview, idx) => (
+                    <div key={idx} style={{ textAlign: "center" }}>
+                      <img
+                        src={preview}
+                        alt={`Preview ${idx + 1}`}
+                        style={{
+                          maxWidth: 120,
+                          maxHeight: 80,
+                          borderRadius: 8,
+                          border: "1.5px solid #dadce0",
+                        }}
+                      />
+                      {imageAssetUrns[idx] && (
+                        <div
+                          style={{
+                            color: "#34a853",
+                            fontSize: "0.97rem",
+                            marginTop: 4,
+                          }}
+                        >
+                          Image ready
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {step === "input" ? (
             <textarea
               className={styles.googleTextarea}

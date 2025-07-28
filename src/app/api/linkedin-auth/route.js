@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 
 const LINKEDIN_CLIENT_ID = process.env.LINKEDIN_CLIENT_ID;
-const REDIRECT_URI =
-  process.env.LINKEDIN_REDIRECT_URI ||
-  "http://localhost:3000/api/linkedin-callback";
+const REDIRECT_URI = process.env.LINKEDIN_REDIRECT_URI;
 
 export async function GET() {
   const state = "linkpilot_" + Date.now();
