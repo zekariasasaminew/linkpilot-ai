@@ -1,15 +1,73 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import styles from "./LinkedInPostGenerator.module.css";
+import ReactMarkdown from "react-markdown";
 
 const LinkedInPostGenerator = () => {
+  // Hydration state to avoid SSR/client mismatch
+  const [hydrated, setHydrated] = useState(false);
+  // Set hydrated to true after mount
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
   const [input, setInput] = useState("");
-  const [post, setPost] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [generated, setGenerated] = useState("");
+  const [refining, setRefining] = useState(false);
+  const [posting, setPosting] = useState(false);
   const [status, setStatus] = useState("");
+  const [imageFiles, setImageFiles] = useState([]); // Array of File
+  const [imagePreviews, setImagePreviews] = useState([]); // Array of preview URLs
+  const [imageAssetUrns, setImageAssetUrns] = useState([]); // Array of asset URNs
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const fileInputRef = useRef();
+  // Handle image selection
+  const handleImageChange = (e) => {
+    const files = Array.from(e.target.files);
+    setImageFiles(files);
+    setImagePreviews(files.map((file) => URL.createObjectURL(file)));
+    setImageAssetUrns([]);
+  };
+
+  // Upload all images to LinkedIn and get asset URNs
+  const uploadImages = async () => {
+    if (!imageFiles.length || !accessToken || !authorUrn) return;
+    setUploadingImages(true);
+    setStatus("");
+    try {
+      const assetUrns = [];
+      for (const file of imageFiles) {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        await new Promise((resolve) => (reader.onload = resolve));
+        const base64 = reader.result.split(",")[1];
+        const res = await fetch("/api/upload-linkedin-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accessToken,
+            authorUrn,
+            fileName: file.name,
+            fileType: file.type,
+            fileData: base64,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Image upload failed");
+        assetUrns.push(data.asset);
+      }
+      setImageAssetUrns(assetUrns);
+      setStatus("All images uploaded and ready to post.");
+    } catch (err) {
+      setStatus("Error uploading images: " + err.message);
+      setImageAssetUrns([]);
+    } finally {
+      setUploadingImages(false);
+    }
+  };
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [accessToken, setAccessToken] = useState("");
   const [authorUrn, setAuthorUrn] = useState("");
+  const [step, setStep] = useState("input");
 
   // On mount, check for LinkedIn auth code in URL or existing session
   useEffect(() => {
@@ -46,164 +104,234 @@ const LinkedInPostGenerator = () => {
     window.location.href = "/api/linkedin-auth";
   };
 
-  const generatePostAndPublish = async () => {
-    if (!input.trim()) {
-      alert("Please enter a prompt.");
+  // Generate or refine post
+  const handleGenerate = async (text) => {
+    setRefining(true);
+    setStatus("");
+    try {
+      const res = await fetch("/api/generate-linkedin-post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: text }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to generate post");
+      setGenerated(data.generatedPost);
+      setStep("generated");
+    } catch (err) {
+      setStatus("Error: " + err.message);
+    } finally {
+      setRefining(false);
+    }
+  };
+
+  // Post to LinkedIn
+  const handlePost = async () => {
+    if (!generated.trim()) {
+      setStatus("Please enter or generate a post first.");
       return;
     }
-
     if (!accessToken || !authorUrn) {
       setStatus("You must authenticate with LinkedIn first.");
       return;
     }
-
-    setLoading(true);
-    setPost("");
-
+    if (imageFiles.length && imageAssetUrns.length !== imageFiles.length) {
+      setStatus("Please upload all images before posting.");
+      return;
+    }
+    setPosting(true);
+    setStatus("");
     try {
-      const res = await fetch("/api/agentic-post", {
+      const res = await fetch("/api/post-linkedin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input, accessToken, authorUrn }),
+        body: JSON.stringify({
+          content: generated,
+          accessToken,
+          authorUrn,
+          imageAssetUrns: imageAssetUrns.length ? imageAssetUrns : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to post to LinkedIn");
-      setPost("✅ Post published successfully to LinkedIn!");
-      setStatus("");
+      setStatus("✅ Post published successfully to LinkedIn!");
+      setStep("done");
     } catch (err) {
       setStatus("Error: " + err.message);
     } finally {
-      setLoading(false);
+      setPosting(false);
     }
   };
 
   return (
-    <div>
-      <div className={styles.card}>
-        <div className={styles.heading} style={{ textAlign: "center" }}>
-          LinkPilot AI
-          <div className={styles.subheading} style={{ fontSize: "1rem" }}>
-            Agentic LinkedIn Post Generator
-          </div>
+    <div className={styles.googleBg}>
+      <div className={styles.googleCard}>
+        <div className={styles.googleHeader}>
+          <span className={styles.logoDot} />
+          <span className={styles.logoDot2} />
+          <span className={styles.logoDot3} />
+          <span className={styles.logoDot4} />
+          <span className={styles.googleTitle}>LinkPilot AI</span>
+          <span className={styles.googleSubtitle}>LinkedIn Post Generator</span>
         </div>
-        <div style={{ position: "relative" }}>
-          <textarea
-            className={styles.textarea}
-            rows={4}
-            placeholder={
-              !isAuthenticated ? "" : "What should the LinkedIn post be about?"
-            }
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={!isAuthenticated}
-            style={
-              !isAuthenticated
-                ? {
-                    opacity: 0.5,
-                    pointerEvents: "none",
-                    background: "#222",
-                    color: "#888",
-                  }
-                : {}
-            }
-          />
-          {!isAuthenticated && (
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#aaa",
-                fontWeight: 500,
-                fontSize: "1.1rem",
-                pointerEvents: "none",
-                background: "rgba(20,20,20,0.35)",
-                borderRadius: 10,
-              }}
-            >
-              Authenticate with LinkedIn to start typing
-            </div>
-          )}
-        </div>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            marginBottom: "1rem",
-          }}
-        >
-          {!isAuthenticated ? (
-            <button className={styles.button} onClick={startLinkedInAuth}>
-              Authenticate with LinkedIn
-            </button>
-          ) : (
-            <button
-              className={styles.button}
-              onClick={generatePostAndPublish}
-              disabled={loading}
-            >
-              {loading ? "Posting..." : "Post"}
-            </button>
-          )}
-        </div>
-        <div
-          className={
-            status.startsWith("Error")
-              ? `${styles.status} ${styles.error}`
-              : styles.status
-          }
-        >
-          {status}
-        </div>
-        {post && <div className={styles.result}>{post}</div>}
-
-        {/* Modal overlay for loading/auth status */}
-        {(loading ||
-          status.startsWith("Authenticating") ||
-          status.startsWith("Redirecting")) && (
-          <div className={styles.modal}>
-            <div className={styles.modalContent}>
-              {loading ? (
-                <>
-                  <div style={{ marginBottom: 12 }}>
-                    <svg
-                      width="32"
-                      height="32"
-                      viewBox="0 0 50 50"
-                      style={{ display: "block", margin: "0 auto" }}
-                    >
-                      <circle
-                        cx="25"
-                        cy="25"
-                        r="20"
-                        fill="none"
-                        stroke="#1a73e8"
-                        strokeWidth="5"
-                        strokeDasharray="31.4 31.4"
-                        strokeLinecap="round"
-                      >
-                        <animateTransform
-                          attributeName="transform"
-                          type="rotate"
-                          from="0 25 25"
-                          to="360 25 25"
-                          dur="1s"
-                          repeatCount="indefinite"
-                        />
-                      </circle>
-                    </svg>
-                  </div>
-                  Posting to LinkedIn...
-                </>
-              ) : (
-                status
+        <div className={styles.googleBody}>
+          {/* Image upload UI */}
+          {/* Only render client-only UI after hydration to avoid SSR mismatch */}
+          {hydrated && isAuthenticated && step !== "done" && (
+            <div style={{ marginBottom: 16 }}>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                ref={fileInputRef}
+                style={{ display: "none" }}
+                onChange={handleImageChange}
+              />
+              <button
+                className={styles.googleButton}
+                type="button"
+                onClick={() =>
+                  fileInputRef.current && fileInputRef.current.click()
+                }
+                disabled={refining || posting || uploadingImages}
+                style={{ marginRight: 8 }}
+              >
+                {imageFiles.length ? "Change Images" : "Upload Images"}
+              </button>
+              {imageFiles.length > 0 &&
+                imageAssetUrns.length !== imageFiles.length && (
+                  <button
+                    className={styles.googleButtonPrimary}
+                    type="button"
+                    onClick={uploadImages}
+                    disabled={uploadingImages || refining || posting}
+                  >
+                    {uploadingImages
+                      ? `Uploading... (${imageAssetUrns.length}/${imageFiles.length})`
+                      : "Upload to LinkedIn"}
+                  </button>
+                )}
+              {imagePreviews.length > 0 && (
+                <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
+                  {imagePreviews.map((preview, idx) => (
+                    <div key={idx} style={{ textAlign: "center" }}>
+                      <img
+                        src={preview}
+                        alt={`Preview ${idx + 1}`}
+                        style={{
+                          maxWidth: 120,
+                          maxHeight: 80,
+                          borderRadius: 8,
+                          border: "1.5px solid #dadce0",
+                        }}
+                      />
+                      {imageAssetUrns[idx] && (
+                        <div
+                          style={{
+                            color: "#34a853",
+                            fontSize: "0.97rem",
+                            marginTop: 4,
+                          }}
+                        >
+                          Image ready
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
+          )}
+          {step === "input" ? (
+            <textarea
+              className={styles.googleTextarea}
+              rows={5}
+              placeholder="What should the LinkedIn post be about?"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={
+                !isAuthenticated || refining || posting || step === "done"
+              }
+              autoFocus
+            />
+          ) : (
+            <>
+              <textarea
+                className={styles.googleTextarea}
+                rows={5}
+                value={generated}
+                onChange={(e) => setGenerated(e.target.value)}
+                disabled={
+                  !isAuthenticated || refining || posting || step === "done"
+                }
+                style={{ marginBottom: 12 }}
+              />
+              <div className={styles.googlePreviewLabel}>Preview:</div>
+              <div className={styles.googleMarkdownPreview}>
+                <ReactMarkdown>{generated}</ReactMarkdown>
+              </div>
+            </>
+          )}
+          {!isAuthenticated && (
+            <div className={styles.googleOverlay}>
+              Authenticate with LinkedIn to start
+            </div>
+          )}
+        </div>
+        <div className={styles.googleActions}>
+          {!isAuthenticated ? (
+            <button className={styles.googleButton} onClick={startLinkedInAuth}>
+              Authenticate with LinkedIn
+            </button>
+          ) : step === "input" ? (
+            <button
+              className={styles.googleButton}
+              onClick={() => handleGenerate(input)}
+              disabled={refining || posting || !input.trim()}
+            >
+              {refining ? "Generating..." : "Generate"}
+            </button>
+          ) : step === "generated" ? (
+            <>
+              <button
+                className={styles.googleButton}
+                onClick={() => handleGenerate(generated)}
+                disabled={refining || posting || !generated.trim()}
+                style={{ marginRight: 8 }}
+              >
+                {refining ? "Refining..." : "Refine"}
+              </button>
+              <button
+                className={styles.googleButtonPrimary}
+                onClick={handlePost}
+                disabled={posting || refining || !generated.trim()}
+              >
+                {posting ? "Posting..." : "Post"}
+              </button>
+            </>
+          ) : (
+            <button
+              className={styles.googleButton}
+              onClick={() => {
+                setStep("input");
+                setInput("");
+                setGenerated("");
+                setStatus("");
+              }}
+            >
+              Create Another
+            </button>
+          )}
+        </div>
+        {status && (
+          <div
+            className={
+              status.startsWith("Error")
+                ? `${styles.googleStatus} ${styles.googleError}`
+                : styles.googleStatus
+            }
+          >
+            {status}
           </div>
         )}
       </div>
