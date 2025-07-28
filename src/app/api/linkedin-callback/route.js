@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 
 const LINKEDIN_CLIENT_ID = process.env.LINKEDIN_CLIENT_ID;
 const LINKEDIN_CLIENT_SECRET = process.env.LINKEDIN_CLIENT_SECRET;
-const REDIRECT_URI =
-  process.env.LINKEDIN_REDIRECT_URI ||
-  "http://localhost:3000/api/linkedin-callback";
+const REDIRECT_URI = process.env.LINKEDIN_REDIRECT_URI;
 
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
@@ -31,12 +29,18 @@ export async function GET(req) {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const profile = await profileRes.json();
-    // Debug: log the full profile response
-    console.log("LinkedIn /userinfo response:", profile);
     const authorUrn = profile.sub ? `urn:li:person:${profile.sub}` : undefined;
-    return NextResponse.json({ accessToken, authorUrn, profile });
+    // Redirect to app with credentials and profile info in URL
+    const params = new URLSearchParams({
+      accessToken,
+      authorUrn,
+      name: profile.name || "",
+      picture: profile.picture || "",
+    });
+    return NextResponse.redirect(
+      `${process.env.NEXT_PUBLIC_BASE_URL || "/"}?${params.toString()}`
+    );
   } catch (err) {
-    console.error("OAuth flow failed:", err);
     return NextResponse.json({ error: "OAuth flow failed" }, { status: 500 });
   }
 }
