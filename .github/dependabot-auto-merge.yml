@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   automerge:
-    if: github.actor == 'dependabot[bot]'
+    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     steps:
       - name: Dependabot metadata
@@ -19,13 +19,14 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install GitHub CLI
-        run: sudo apt-get install -y gh
-
-      - name: Auto-merge patch updates
-        if: steps.meta.outputs.update-type == 'version-update:semver-patch'
+      - name: Log metadata
         run: |
-          gh pr merge "$PR_URL" --auto --squash
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo "update-type=${{ steps.meta.outputs['update-type'] }}"
+          echo "dependency-name=${{ steps.meta.outputs['dependency-name'] }}"
+
+      - name: Enable auto merge for patch updates
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch'
+        uses: peter-evans/enable-pull-request-automerge@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          merge-method: merge
